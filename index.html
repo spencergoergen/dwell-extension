@@ -5,424 +5,196 @@
   <meta charset="utf-8">
   <title>Michigan Counties Map</title>
   <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no'>
-  <script src='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.js'></script>
-  <link href='https://api.mapbox.com/mapbox-gl-js/v2.6.1/mapbox-gl.css' rel='stylesheet'>
   <script src='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.0/mapbox-gl-geocoder.min.js'></script>
   <link href='https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v4.7.0/mapbox-gl-geocoder.css' rel='stylesheet'>
 
   <style>
     body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0px; width: 100%;   z-index: -1;}
-    #geocoder-container {
+    .info-info {
+      padding: 8px;
+      background-color: white; 
+      display: block;
+      position: absolute; 
+      top: 40px; 
+      left: 10px; 
+      padding: 10px; 
+      border-radius: 3px;
+      z-index: 1;
+    } 
+    .search-input {
+      display: block;
+      width: 155px;
       position: absolute;
       top: 10px;
       left: 10px;
-      z-index: 1;
-    }
-    #slider-container { 
-      position: absolute; 
-      bottom: 25px; 
-      left: 50%; 
-      transform: translateX(-50%);
-      width: 75%;
-      padding: 5px; 
-      background-color: #fff; 
-      border-radius: 5px;
-      display: flex;
-      justify-content: space-between;
       align-items: center;
-      font-size: 12px;
-    }
-
-    #real-slider { 
-      width: calc(100%); /* Adjusted width to fit labels */
-    }
-
-    #slider-value {
-      text-align: center;
-      font-weight: bold;
-      margin-top: 10px;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    .scrollable {
-      max-height: 1000px; /* Set a maximum height */
-      overflow-y: auto; /* Enable vertical scrolling */
-    }
-
-    .township-list {
-    overflow-y: auto;
-    max-height: 120px; /* Adjust the maximum height as needed */
-    }
-
-    /* Hide extra townships when more than 4 */
-    .township.hidden {
-      display: none;
-    }
-
-    .back-button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 10px 15px;
-            font-size: 16px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-    .back-button:hover {
-        background-color: #45a049;
     }
   </style>
 </head>
 <body>
-<div id="geocoder-container"></div>
 
-<div id='map'></div>
-<div class="white-box"></div>
-<div id="slider-container">
-  <input type="range" min="0" max="2000000" step="5000" id="real-slider">
+<div class="info-info" id='info'>Search an address for results</div>
+<div class="search-input" id="searchInput">
+    <input type="text" id="searchField" style="position: absolute; top:10px; left: 5px;" placeholder="Search by City, ZIP, Address...">
 </div>
-<button id="myButton" class="btnStyle" style="color: white; background-color: blue; position: absolute; top: 60px;">Click me!</button>
-<div id="slider-value"></div>
-<div id="slider-top" style='position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); background-color: white; padding: 5px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 16px;'>Estimated Home Value: $1,000,000</div>
-<div id='bottom-text' style='position: absolute; bottom: 0.5px; left: 50%; transform: translateX(-50%); background-color: white; padding: 5px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px;'>Use slider; Re-select area to update</div>
-<div id='info' style='position: absolute; top: 5px; left: 10px; background-color: white; padding: 10px; border-radius: 3px;'>Select an Area & Use Slider</div>
-<!--<button class="back-button" onclick="goBack()">Back</button>-->
+<button id="searchButton" style="position: absolute; top:10px; left: 180px;">Search</button>
 
 <script>
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  // Assuming request.address contains the extracted address from the extension
-  const extractedAddress = request.address;
-  query = extractedAddress.replace(/\s/g, '-'); // Replace spaces with dashes if needed
 
-  // Trigger the button click event programmatically
-  document.getElementById('myButton').click();
+const twpTile = 'sgoergen.cwfj8c5h'
+const schoolTile = 'sgoergen.4ev89ja0'
+const countyTile = 'sgoergen.7bkrwr5z'
+const accessToken = 'sk.eyJ1Ijoic2dvZXJnZW4iLCJhIjoiY2xyYjdwMnZlMGx5ejJqcW40Z2Y0ajBoaSJ9.LGsPdV8lGAyqriVkD0EEaA';
 
-  // Logic to calculate cost and property tax here...
-  // Calculate the cost and property tax
-  const cost = calculateCost(extractedAddress); // Implement your cost calculation logic here
-  const propertyTax = calculatePropertyTax(extractedAddress); // Implement your property tax calculation logic here
+const searchInput = document.getElementById('searchField');
+const searchButton = document.getElementById('searchButton');
 
-  // Send the cost and property tax back to the extension
-  sendResponse({cost, propertyTax });
+const geocoder = new MapboxGeocoder({
+    placeholder: 'Search by City, ZIP, Address...',
+    accessToken: accessToken,
 });
 
-  mapboxgl.accessToken = 'pk.eyJ1Ijoic2dvZXJnZW4iLCJhIjoiY2xxOGh3NXNmMWRpbDJybGt0M3dlaWhuaCJ9._cf-BoBhMT2C5-sHnyHqeQ';
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/streets-v11',
-    center: [-85, 43], // Center the map on Michigan
-    zoom: 8 // Adjust the zoom level as needed
-  });
-query = "10819-oak-lane-belleville-MI"
-document.getElementById('myButton').addEventListener('click', function() {
-    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${mapboxgl.accessToken}`)
-            .then(response => response.json())
-            .then(data => {
-                const features = data.features;
-                if (features.length > 0) {
-                    const placeName = features[0].place_name; // Extract the city name from the JSON response
-                    const cityText = features[0].text; 
-                    if (placeName.toLowerCase().includes('michigan')) {
-                        const coordinates = features[0].geometry.coordinates; // Get the coordinates
-                        map.jumpTo({
-                            center: coordinates, // Set the map center to the entered location
-                            zoom: 40 // You can adjust the zoom level as needed
-                        });
-                        const center = map.getCenter();
-                        map.fire('click', { lngLat: [center.lng, center.lat] }); // Ypsilanti coordinates
-                      }
+// Declare infoDiv before using it
+const infoDiv = document.getElementById('info');
+
+searchButton.addEventListener('click', function() {
+    const searchAddress = searchInput.value;
+    if (searchAddress.trim() !== '') {
+        simulateSearch(searchAddress);
+    }
+});
+
+function simulateSearch(address) {
+    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${accessToken}`)
+        .then(response => response.json())
+        .then(data => {
+            const features = data.features;
+            infoDiv.innerHTML = ``;
+            let schoolFeatures;
+            let countyFeatures;
+            let townshipFeatures;
+            let clickedCounty;
+            let clickedSchoolName;
+            let clickedTwp;
+
+            if (features.length > 0) {
+                const coordinates = features[0].geometry.coordinates;
+                // Swap the order if necessary
+                const correctedCoordinates = [coordinates[1], coordinates[0]];
+                console.log(correctedCoordinates);
+
+                // Use your own tileset ID for townships.geoJSON in the URL
+                fetch(`https://api.mapbox.com/v4/${twpTile}/tilequery/${coordinates[0]},${coordinates[1]}.json?access_token=${accessToken}`)
+                    .then(response => response.json())
+                    .then(tileQueryData => {
+                        // Check if the result features are within your features
+                        townshipFeatures = tileQueryData.features;
+                        console.log(townshipFeatures)
+                        if (townshipFeatures && townshipFeatures.length > 0) {
+                            clickedTwp = townshipFeatures[0].properties.LABEL;
+                            console.log("Township: ", clickedTwp);
+                            infoDiv.innerHTML += `<br><strong><span style="color: blue;">Township/City:</span></strong> ${clickedTwp}<br>`;
+                        } else {
+                            console.log("Location is not within a township");
+                            infoDiv.innerHTML += "Location is not within a township<br>";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching tilequery data:', error);
+                    });
+
+                    // Use your own tileset ID for townships.geoJSON in the URL
+                  fetch(`https://api.mapbox.com/v4/${countyTile}/tilequery/${coordinates[0]},${coordinates[1]}.json?access_token=${accessToken}`)
+                    .then(response => response.json())
+                    .then(tileQueryData => {
+                        // Check if the result features are within your features
+                        countyFeatures = tileQueryData.features;
+                        console.log(countyFeatures)
+                        if (countyFeatures && countyFeatures.length > 0) {
+                            clickedCounty = countyFeatures[0].properties.NAME_2;
+                            console.log("County: ", clickedCounty);
+                            infoDiv.innerHTML += `<strong><span style="color: blue;">County:</span></strong> ${clickedCounty}<br>`;
+                        } else {
+                            console.log("Location is not within a township");
+                            infoDiv.innerHTML += "Location is not within a township<br>";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching tilequery data:', error);
+                    });
+
+                    fetch(`https://api.mapbox.com/v4/${schoolTile}/tilequery/${coordinates[0]},${coordinates[1]}.json?access_token=${accessToken}`)
+                    .then(response => response.json())
+                    .then(tileQueryData => {
+                        // Check if the result features are within your features
+                        schoolFeatures = tileQueryData.features;
+                        if (schoolFeatures && schoolFeatures.length > 0) {
+                            clickedSchoolName = schoolFeatures[0].properties.NAME;
+                            console.log("School: ", clickedSchoolName);
+                            infoDiv.innerHTML += `<strong><span style="color: blue;">School:</span></strong> ${clickedSchoolName}<br>`;
+                        } else {
+                            console.log("Location is not within a township");
+                            infoDiv.innerHTML += "Location is not within a township<br>";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching tilequery data:', error);
+                    });
+
+                    let mapInfo; // Declare countyInfo variable outside the event handlers
+
+                    fetch('michigan.json')
+                    .then(response => response.json())
+                    .then(data => {
+                      const mapInfo = data;
+                      let cost = 'Cost not calculated';
+                      let totalMonthly = 'Total Monthly not calculated';
+
+                      if (schoolFeatures && schoolFeatures.length > 0) {
+                          let clickedSchoolName = schoolFeatures[0].properties.NAME.toLowerCase().split(' ');
+                          let clickedSchool = schoolFeatures[0].properties.NAME;
+                          console.log(clickedSchool)
+
+                          // Words to be filtered out
+                          const wordsToRemove = ['comm', 'community', 'school', 'schools'];
+
+                          // Remove specific words from the clickedSchoolName array
+                          clickedSchoolName = clickedSchoolName.filter(word => !wordsToRemove.includes(word));
+
+                          // Split words on dash ("-") and flatten the array
+                          clickedSchoolName = clickedSchoolName.flatMap(word => word.split('-'));
+
+                          let rate = 'Rate not found'; // Default message if rate is not found
+                          //console.log(clickedSchoolName);
+                          //console.log("^^ Real Clicked");
+                          console.log(mapInfo)
+                          const countyData = mapInfo[clickedCounty];
+                          
+                          if (countyData && countyData[clickedTwp]) {
+                              const schoolsInTownship = countyData[clickedTwp][0];
+                              Object.keys(schoolsInTownship).forEach(school => {
+                                  const lowercaseSchool = school.toLowerCase();
+                                  const schoolWords = lowercaseSchool.split(/[\s-]+/);
+                                  //console.log(schoolWords);
+                                  //console.log("^^ From JSON");
+
+                                  // Check if any word in the clicked school name matches a word in the school name
+                                  schoolWords.forEach(clickedWord => {
+                                      if (clickedSchoolName.includes(clickedWord)) {
+                                          rate = schoolsInTownship[school].Rate;
+                                          infoDiv.innerHTML += `<strong><span style="color: blue;">Rate:</span></strong> ${rate}<br>`;
+                                      }
+                                  });
+                              });
+                        }
                     }
                   })
-  });
-
-  function goBack() {
-            window.history.back();
-        }
-
-  const bounds = [
-    [-91, 41], // Southwest coordinates of Michigan
-    [-81.5, 49] // Northeast coordinates of Michigan
-  ];
-  const infoDisplay = document.getElementById('info');
-  let mapInfo; // Declare countyInfo variable outside the event handlers
-  // Load the JSON data from external file
-  fetch('michigan.json')
-    .then(response => response.json())
-    .then(data => {
-      const mapInfo = data;
-
-      map.on('load', () => {
-        const sliderValueDisplay = document.getElementById('slider-value');
-        const sliderContainer = document.getElementById('slider-container');
-        const sliderValueTop = document.getElementById('slider-top'); // New element for top display
-        const slider = document.getElementById('real-slider');
-        const infoPage = document.getElementById('info');
-
-        slider.addEventListener('input', (e) => {
-          const sliderValue = parseFloat(e.target.value);
-          // Update the element at the top with the slider value and static text
-          const monthlyCostText = 'Estimated Home Value: ';
-          const sliderValueTop = document.getElementById('slider-top');
-          //const monthlyCostText2 = '(Homestead)';
-          
-          // Assuming sliderValue is a number representing the currency value
-          sliderValueTop.textContent = `${monthlyCostText}$${Number(sliderValue).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-          // add ${monthlyCostText2} to end of the ^^
-      });
-
-        map.setMaxBounds(bounds);
-        map.setMinZoom(3);
-
-        // Load county boundary data
-        map.addSource('townships', {
-          type: 'geojson',
-          data: 'townships.geojson' // Replace with the path to your county boundary JSON file
-        });   
-
-                // Load county boundary data
-        map.addSource('schools', {
-          type: 'geojson',
-          data: 'schools.geojson' // Replace with the path to your county boundary JSON file
-        });   
-
-                        // Load county boundary data
-        map.addSource('counties', {
-          type: 'geojson',
-          data: 'county.geojson' // Replace with the path to your county boundary JSON file
-        });   
-
-        // Add county line layer
-        map.addLayer({
-          'id': 'townships-line-layer',
-          'type': 'line',
-          'source': 'townships',
-          'paint': {
-            'line-color': '#000000', // Adjust the color of the county lines as needed
-            'line-opacity': 0.1,
-            'line-width': 3 // Adjust the width of the county lines
-          }
-        });
-
-                        // Add county line layer
-        map.addLayer({
-          'id': 'schools-line-layer',
-          'type': 'line',
-          'source': 'schools',
-          'paint': {
-            'line-color': '#000000', // Adjust the color of the county lines as needed
-            'line-opacity': 0.1,
-            'line-width': 3 // Adjust the width of the county lines
-          }
-        });
-
-
-        map.addLayer({
-          'id': 'county-line-layer',
-          'type': 'line',
-          'source': 'counties',
-          'paint': {
-            'line-color': '#000000', // Adjust the default fill color of the counties as needed
-            'line-opacity': 0, // Adjust the fill opacity of the counties
-            'line-width': 4
-          }
-        });
-
-                // Add county fill layer
-        map.addLayer({
-          'id': 'townships-fill-layer',
-          'type': 'fill',
-          'source': 'townships',
-          'paint': {
-            'fill-color': '#0000FF', // Adjust the default fill color of the counties as needed
-            'fill-opacity': 0 // Adjust the fill opacity of the counties
-          }
-        });
-
-                // Add county fill layer
-        map.addLayer({
-          'id': 'county-fill-layer',
-          'type': 'fill',
-          'source': 'counties',
-          'paint': {
-            'fill-color': '#000000', // Adjust the default fill color of the counties as needed
-            'fill-opacity': 0 // Adjust the fill opacity of the counties
-          }
-        });
-
-
-        // Add county fill layer
-        map.addLayer({
-          'id': 'schools-fill-layer',
-          'type': 'fill',
-          'source': 'schools',
-          'paint': {
-            'fill-color': '#FF0000', // Adjust the default fill color of the counties as needed
-            'fill-opacity': 0 // Adjust the fill opacity of the counties
-          }
-        });
-
-
-        // Information display div
-        const infoDisplay = document.getElementById('info');
-
-        map.on('click', (e) => {
-          const countyFeatures = map.queryRenderedFeatures(e.point, { layers: ['county-fill-layer'] });
-          const townshipFeatures = map.queryRenderedFeatures(e.point, { layers: ['townships-fill-layer'] });
-          const schoolFeatures = map.queryRenderedFeatures(e.point, { layers: ['schools-fill-layer'] });
-
-          const infoDiv = document.getElementById('info');
-          const bottomText = document.getElementById('bottom-text');
-          infoDiv.innerHTML = ''; // Clear previous content
-          bottomText.innerHTML = ''; // Clear previous content
-
-          let clickedCounty = ''
-          let clickedTwp = ''
-          let clickedSchool = ''
-          //infoDiv.innerHTML += `<strong>Monthly Property Tax For Loan Amount: </strong> ${sliderValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`;
-          infoDiv.innerHTML += `<strong><span style="color: purple;">Selected Area</span></strong><br>`;
-          bottomText.innerHTML += `Use slider; Re-select area to updatee<br>`;
-
-          if (countyFeatures.length > 0) {
-            clickedCounty = countyFeatures[0].properties.NAME_2; // Extract county name from the GeoJSON property
-            infoDiv.innerHTML += `<strong>County:</strong> <strong>${clickedCounty}</strong><br>`;
-          }
-
-          if (townshipFeatures.length > 0) {
-              clickedTwp = townshipFeatures[0].properties.LABEL;
-              infoDiv.innerHTML += `<strong><span style="color: blue;">Township/City:</span></strong> ${clickedTwp}<br>`;
-          }
-
-          //console.log(mapInfo[clickedCounty][clickedTwp]);
-          let cost = 'Cost not calculated';
-          let yearly = 0;
-
-          if (schoolFeatures.length > 0 && mapInfo) {
-            let clickedSchoolName = schoolFeatures[0].properties.NAME.toLowerCase().split(' ');
-            clickedSchool = schoolFeatures[0].properties.NAME
-
-            // Words to be filtered out
-            const wordsToRemove = ['comm', 'community', 'school', 'schools'];
-
-            // Remove specific words from the clickedSchoolName array
-            clickedSchoolName = clickedSchoolName.filter(word => !wordsToRemove.includes(word));
-
-            // Split words on dash ("-") and flatten the array
-            clickedSchoolName = clickedSchoolName.flatMap(word => word.split('-'));
-
-            let rate = 'Rate not found'; // Default message if rate is not found
-            //console.log(clickedSchoolName);
-            //console.log("^^ Real Clicked");
-            const countyData = mapInfo[clickedCounty];
-            
-            if (countyData && countyData[clickedTwp]) {
-                const schoolsInTownship = countyData[clickedTwp][0];
-
-                Object.keys(schoolsInTownship).forEach(school => {
-                    const lowercaseSchool = school.toLowerCase();
-                    const schoolWords = lowercaseSchool.split(/[\s-]+/);
-                    //console.log(schoolWords);
-                    //console.log("^^ From JSON");
-
-                    // Check if any word in the clicked school name matches a word in the school name
-                    schoolWords.forEach(clickedWord => {
-                        if (clickedSchoolName.includes(clickedWord)) {
-                            rate = schoolsInTownship[school].Rate;
-                        }
-                    });
-                });
-                const sliderValue = parseFloat(document.getElementById('real-slider').value);
-                cost = ((sliderValue / 2000) * rate) / 12;
-                yearly = cost * 12;
-                cost = Math.floor(cost);
-                yearly = Math.floor(yearly);
-
             }
-
-            infoDiv.innerHTML += `<strong><span style="color: red;">School:</span></strong> ${schoolFeatures[0].properties.NAME}<br>`;
-            //infoDiv.innerHTML += `<strong>Rate:</strong> ${rate}<br>`;
-            infoDiv.innerHTML += `<strong style="font-size: 17px;">Property Tax: </strong>$<span style="font-size: 17px;">${cost} monthly,  $${yearly} yearly</span><br>`;
-            //infoDiv.innerHTML += `<strong style="font-size: 17px;">Yearly Property Tax:</strong>$<span style="font-size: 17px;">${yearly}</span><br>`;
-            infoDiv.innerHTML += `<span style="font-size: 12px;">*Only an Estimate based on posted 2022 Michigan Millage Rates</span>`;
-          }
-
-          map.setPaintProperty('townships-fill-layer', 'fill-opacity', [
-                'case',
-                ['==', ['get', 'LABEL'], clickedTwp],
-                0.4, // Change this to the desired opacity for the clicked county (0.5 for example)
-                0.0 // Default opacity for other counties
-              ]);
-
-          map.setPaintProperty('county-fill-layer', 'fill-opacity', [
-                'case',
-                ['==', ['get', 'NAME_2'], clickedCounty],
-                0.0, // Change this to the desired opacity for the clicked county (0.5 for example)
-                0.3 // Default opacity for other counties
-          ]);
-
-          map.setPaintProperty('county-line-layer', 'line-opacity', [
-                'case',
-                ['==', ['get', 'NAME_2'], clickedCounty],
-                1.0, // Change this to the desired opacity for the clicked county (0.5 for example)
-                0.1 // Default opacity for other counties
-              ]);
-
-          map.setPaintProperty('schools-line-layer', 'line-opacity', [
-                'case',
-                ['==', ['get', 'NAME'], clickedSchool],
-                1.0, // Change this to the desired opacity for the clicked county (0.5 for example)
-                0.2 // Default opacity for other counties
-          ]);
-
-          map.setPaintProperty('townships-line-layer', 'line-opacity', [
-                'case',
-                ['==', ['get', 'LABEL'], clickedTwp],
-                1.0, // Change this to the desired opacity for the clicked county (0.5 for example)
-                0.2 // Default opacity for other counties
-          ]);
-
-          map.setPaintProperty('schools-fill-layer', 'fill-opacity', [
-            'case',
-            ['==', ['get', 'NAME'], clickedSchool],
-            .25, // Change this to the desired opacity for the clicked county (0.5 for example)
-            0.0 // Default opacity for other counties
-          ]);
-
-});
-
-
-        // Change cursor to pointer when hovering over county fill
-        map.on('mouseenter', 'county-fill-layer', () => {
-          map.getCanvas().style.cursor = 'pointer';
+        })
+        .catch(error => {
+            console.error('Error fetching geocoding data:', error);
         });
-
-        // Change cursor back to default
-        map.on('mouseleave', 'county-fill-layer', () => {
-          map.getCanvas().style.cursor = '';
-        });
-      });
-    })
-    .catch(error => {
-      console.error('Error fetching JSON:', error);
-    });
-
-  // Function to toggle school display for a township/city
-  function toggleSchools(element) {
-    const schoolsElement = element.nextElementSibling;
-    if (schoolsElement.style.display === 'none') {
-      schoolsElement.style.display = 'block';
-    } else {
-      schoolsElement.style.display = 'none';
-    }
-  }
+}
 </script>
 
 </body>
