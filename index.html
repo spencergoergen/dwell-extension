@@ -64,20 +64,12 @@ searchButton.addEventListener('click', function() {
     }
 });
 
-chrome.runtime.onMessage.addListener(
-  function(request, sender, sendResponse) {
-    if (request.contentScriptQuery === "queryAddress") {
-      // Process the request and gather the information
-      const addressInfo = {
-        address: "123 Main St, City, Country",
-        // Include any other information you want to send
-      };
-
-      // Send the response back to the content script
-      sendResponse(addressInfo);
-    }
-  }
-);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Content Script received message:", message);
+  // Process the message as needed
+  // Optionally, send a response back to the background script
+  sendResponse({ success: true });
+});
 
 function simulateSearch(address) {
     let coordinates;
