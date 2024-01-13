@@ -64,16 +64,20 @@ searchButton.addEventListener('click', function() {
     }
 });
 
-// Content Script
-const dataToSend = {
-  contentScriptQuery: "queryAddress",
-  // Include any other data you want to send
-};
+chrome.runtime.onMessage.addListener(
+  function(request, sender, sendResponse) {
+    if (request.contentScriptQuery === "queryAddress") {
+      // Process the request and gather the information
+      const addressInfo = {
+        address: "123 Main St, City, Country",
+        // Include any other information you want to send
+      };
 
-chrome.runtime.sendMessage(dataToSend, function(response) {
-  // Handle the response from the background script
-  console.log("Received response:", response);
-});
+      // Send the response back to the content script
+      sendResponse(addressInfo);
+    }
+  }
+);
 
 function simulateSearch(address) {
     let coordinates;
