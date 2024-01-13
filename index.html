@@ -64,17 +64,15 @@ searchButton.addEventListener('click', function() {
     }
 });
 
-// Content script in index.html or target webpage
-const port = chrome.runtime.connect({ name: "content-script" });
+window.addEventListener("message", function(event) {
+    // Check the origin to ensure the message is from the extension
+    if (event.source === window && event.data.type && event.data.type === "FROM_EXTENSION") {
+      // Handle the message from the extension
+      console.log("Received message from extension:", event.data.data);
 
-// Listen for messages from the background script
-port.onMessage.addListener(message => {
-  console.log("Content Script received message:", message);
-
-  // Process the message as needed
-
-  // Optionally, send a response back to the background script
-  port.postMessage({ success: true });
+      // Optionally, send a response back to the extension
+      window.postMessage({ type: "TO_EXTENSION", data: "Response from content script!" }, "*");
+    }
 });
 
 function simulateSearch(address) {
