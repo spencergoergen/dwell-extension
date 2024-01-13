@@ -64,6 +64,17 @@ searchButton.addEventListener('click', function() {
     }
 });
 
+// Content Script
+const dataToSend = {
+  contentScriptQuery: "queryAddress",
+  // Include any other data you want to send
+};
+
+chrome.runtime.sendMessage(dataToSend, function(response) {
+  // Handle the response from the background script
+  console.log("Received response:", response);
+});
+
 function simulateSearch(address) {
     let coordinates;
     let mapInfo; // Declare countyInfo variable outside the event handlers
@@ -175,7 +186,6 @@ function simulateSearch(address) {
                                             perc = rate * 0.05;
                                             finalPerc = perc.toFixed(2);
                                             infoDiv.innerHTML += `<strong><span style="color: black;">Percentage:</span></strong> ${finalPerc}%<br>`;
-
                                             foundRate = true;
                                         }
                                     }
