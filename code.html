@@ -67,34 +67,14 @@ searchButton.addEventListener('click', function() {
 function simulateSearch(address) {
     let coordinates;
     let mapInfo; // Declare countyInfo variable outside the event handlers
-    let clickedCounty;
-    let clickedTwp;
 
     // Fetch geocoding data
     fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${accessToken}`)
         .then(response => response.json())
         .then(data => {
-            infoDiv.innerHTML = ''
             const features = data.features;
             if (features.length > 0) {
                 coordinates = features[0].geometry.coordinates;
-            }
-        })
-        .then(() => {
-            // Fetch county data
-            return fetch(`https://api.mapbox.com/v4/${countyTile}/tilequery/${coordinates[0]},${coordinates[1]}.json?access_token=${accessToken}`)
-                .then(response => response.json());
-        })
-        .then(countyTileData => {
-            // Process county data
-            const countyFeatures = countyTileData.features;
-            if (countyFeatures && countyFeatures.length > 0) {
-                clickedCounty = countyFeatures[0].properties.NAME_2;
-                console.log("County: ", clickedCounty);
-                infoDiv.innerHTML += `<br><strong><span style="color: blue;">County:</span></strong> ${clickedCounty}<br>`;
-            } else {
-                console.log("Location is not within a county");
-                infoDiv.innerHTML += "Location is not within a county<br>";
             }
         })
         .then(() => {
@@ -106,12 +86,29 @@ function simulateSearch(address) {
             // Process township data
             const townshipFeatures = twpTileData.features;
             if (townshipFeatures && townshipFeatures.length > 0) {
-                clickedTwp = townshipFeatures[0].properties.LABEL;
+                const clickedTwp = townshipFeatures[0].properties.LABEL;
                 console.log("Township: ", clickedTwp);
-                infoDiv.innerHTML += `<strong><span style="color: red;">Township/City:</span></strong> ${clickedTwp}<br>`;
+                infoDiv.innerHTML += `<br><strong><span style="color: blue;">Township/City:</span></strong> ${clickedTwp}<br>`;
             } else {
                 console.log("Location is not within a township");
                 infoDiv.innerHTML += "Location is not within a township<br>";
+            }
+        })
+        .then(() => {
+            // Fetch county data
+            return fetch(`https://api.mapbox.com/v4/${countyTile}/tilequery/${coordinates[0]},${coordinates[1]}.json?access_token=${accessToken}`)
+                .then(response => response.json());
+        })
+        .then(countyTileData => {
+            // Process county data
+            const countyFeatures = countyTileData.features;
+            if (countyFeatures && countyFeatures.length > 0) {
+                const clickedCounty = countyFeatures[0].properties.NAME_2;
+                console.log("County: ", clickedCounty);
+                infoDiv.innerHTML += `<strong><span style="color: blue;">County:</span></strong> ${clickedCounty}<br>`;
+            } else {
+                console.log("Location is not within a county");
+                infoDiv.innerHTML += "Location is not within a county<br>";
             }
         })
         .then(() => {
@@ -124,19 +121,21 @@ function simulateSearch(address) {
             if (schoolFeatures && schoolFeatures.length > 0) {
                 const clickedSchoolName = schoolFeatures[0].properties.NAME;
                 console.log("School: ", clickedSchoolName);
-                infoDiv.innerHTML += `<strong><span style="color: purple;">School:</span></strong> ${clickedSchoolName}<br>`;
+                infoDiv.innerHTML += `<strong><span style="color: blue;">School:</span></strong> ${clickedSchoolName}<br>`;
                 
                 fetch('michigan.json')
                     .then(response => response.json())
                     .then(data => {
                       const mapInfo = data;
                       let perc = "Percentage not calculated."
+
                       if (schoolFeatures && schoolFeatures.length > 0) {
                           let clickedSchoolName = schoolFeatures[0].properties.NAME.toLowerCase().split(' ');
                           let clickedSchool = schoolFeatures[0].properties.NAME;
+                          console.log(clickedSchool)
 
                           // Words to be filtered out
-                          const wordsToRemove = ['comm', 'community', 'school', 'schools', 'public', 'district'];
+                          const wordsToRemove = ['comm', 'community', 'school', 'schools'];
 
                           // Remove specific words from the clickedSchoolName array
                           clickedSchoolName = clickedSchoolName.filter(word => !wordsToRemove.includes(word));
@@ -145,42 +144,30 @@ function simulateSearch(address) {
                           clickedSchoolName = clickedSchoolName.flatMap(word => word.split('-'));
 
                           let rate = 'Rate not found'; // Default message if rate is not found
-                          console.log(clickedSchoolName);
+                          //console.log(clickedSchoolName);
                           //console.log("^^ Real Clicked");
                           console.log(mapInfo)
                           const countyData = mapInfo[clickedCounty];
                           
                           if (countyData && countyData[clickedTwp]) {
-                            const schoolsInTownship = countyData[clickedTwp][0];
-                            console.log(schoolsInTownship);
-                            
-                            let foundRate = false; // Flag to check if a matching rate is found
-                            
-                            Object.keys(schoolsInTownship).forEach(school => {
-                                const lowercaseSchool = school.toLowerCase();
-                                const schoolWords = lowercaseSchool.split(/[\s-]+/);
-                                console.log(schoolWords);
-                                // Check if any word in the clicked school name matches a word in the school name
-                                schoolWords.forEach(clickedWord => {
-                                    if (clickedSchoolName.includes(clickedWord)) {
-                                        const currentRate = schoolsInTownship[school].Rate;
+                              const schoolsInTownship = countyData[clickedTwp][0];
+                              Object.keys(schoolsInTownship).forEach(school => {
+                                  const lowercaseSchool = school.toLowerCase();
+                                  const schoolWords = lowercaseSchool.split(/[\s-]+/);
+                                  //console.log(schoolWords);
+                                  //console.log("^^ From JSON");
 
-                                        // Check if the rate is the same as another school's rate
-                                        if (!foundRate || currentRate !== rate) {
-                                            rate = currentRate;
-                                            testSchool = schoolsInTownship[school];
-                                            console.log(testSchool);
-
-                                            infoDiv.innerHTML += `<strong><span style="color: green;">Rate:</span></strong> ${rate}<br>`;
-                                            perc = rate * 0.05;
-                                            finalPerc = perc.toFixed(2);
-                                            infoDiv.innerHTML += `<strong><span style="color: black;">Percentage:</span></strong> ${finalPerc}%<br>`;
-
-                                            foundRate = true;
-                                        }
-                                    }
-                                });
-                            });
+                                  // Check if any word in the clicked school name matches a word in the school name
+                                  schoolWords.forEach(clickedWord => {
+                                      if (clickedSchoolName.includes(clickedWord)) {
+                                          rate = schoolsInTownship[school].Rate;
+                                          infoDiv.innerHTML += `<strong><span style="color: blue;">Rate:</span></strong> ${rate}<br>`;
+                                          perc = rate * 0.05;
+                                          finalPerc = perc.toFixed(2);
+                                          infoDiv.innerHTML += `<strong><span style="color: blue;">Percentage:</span></strong> ${finalPerc}%<br>`;
+                                      }
+                                  });
+                              });
                         }
                     }
                   })
