@@ -64,11 +64,17 @@ searchButton.addEventListener('click', function() {
     }
 });
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+// Content script in index.html or target webpage
+const port = chrome.runtime.connect({ name: "content-script" });
+
+// Listen for messages from the background script
+port.onMessage.addListener(message => {
   console.log("Content Script received message:", message);
+
   // Process the message as needed
+
   // Optionally, send a response back to the background script
-  sendResponse({ success: true });
+  port.postMessage({ success: true });
 });
 
 function simulateSearch(address) {
